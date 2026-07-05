@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    Added scenario tests for load balancer with additional VIPs.
+  - |
+    Added API tests for load balancer with additional VIPs (these tests are
+    skipped in noop mode).

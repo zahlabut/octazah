@@ -1,0 +1,1143 @@
+- nodeset:
+    name: octavia-single-node-ubuntu-focal
+    nodes:
+      - name: controller
+        label: nested-virt-ubuntu-focal
+    groups:
+      - name: tempest
+        nodes:
+          - controller
+
+- nodeset:
+    name: octavia-single-node-ubuntu-jammy
+    nodes:
+      - name: controller
+        label: nested-virt-ubuntu-jammy
+    groups:
+      - name: tempest
+        nodes:
+          - controller
+
+- nodeset:
+    name: octavia-single-node-ubuntu-noble
+    nodes:
+      - name: controller
+        label: nested-virt-ubuntu-noble
+    groups:
+      - name: tempest
+        nodes:
+          - controller
+
+- nodeset:
+    name: octavia-single-node-centos-9-stream
+    nodes:
+      - name: controller
+        label: nested-virt-centos-9-stream
+    groups:
+      - name: tempest
+        nodes:
+          - controller
+
+- nodeset:
+    name: octavia-single-node-rockylinux-9
+    nodes:
+      - name: controller
+        label: nested-virt-rockylinux-9
+    groups:
+      - name: tempest
+        nodes:
+          - controller
+
+- nodeset:
+    name: octavia-two-node
+    nodes:
+      - name: controller
+        label: nested-virt-ubuntu-noble
+      - name: controller2
+        label: nested-virt-ubuntu-noble
+    groups:
+      - name: controller
+        nodes:
+          - controller
+      # Node where tests are executed and test results collected
+      - name: tempest
+        nodes:
+          - controller
+      # Nodes running the compute service
+      - name: compute
+        nodes:
+          - controller
+          - controller2
+      # Nodes that are not the controller
+      - name: subnode
+        nodes:
+          - controller2
+      # Switch node for multinode networking setup
+      - name: switch
+        nodes:
+          - controller
+      # Peer nodes for multinode networking setup
+      - name: peers
+        nodes:
+          - controller2
+
+- job:
+    name: octavia-dsvm-base
+    parent: devstack-tempest
+    timeout: 7800
+    required-projects:
+      - openstack/devstack
+      - openstack/octavia
+      - openstack/octavia-lib
+      - openstack/octavia-tempest-plugin
+      - openstack/python-octaviaclient
+    irrelevant-files:
+      - ^.*\.rst$
+      - ^api-ref/.*$
+      - ^doc/.*$
+      - ^etc/.*$
+      - ^releasenotes/.*$
+    vars:
+      configure_swap_size: 8192
+      devstack_localrc:
+        USE_PYTHON3: true
+        LIBVIRT_TYPE: kvm
+        LIBVIRT_CPU_MODE: host-passthrough
+      devstack_local_conf:
+        post-config:
+          $OCTAVIA_CONF:
+            DEFAULT:
+              debug: True
+      devstack_services:
+        c-bak: false
+        c-sch: false
+        c-api: false
+        c-vol: false
+        cinder: false
+        octavia: true
+        o-api: true
+        o-cw: true
+        o-hm: true
+        o-hk: true
+        swift: false
+        s-account: false
+        s-container: false
+        s-object: false
+        s-proxy: false
+        tempest: true
+      devstack_plugins:
+        octavia: https://opendev.org/openstack/octavia.git
+        octavia-tempest-plugin: https://opendev.org/openstack/octavia-tempest-plugin.git
+        neutron: https://opendev.org/openstack/neutron.git
+      tempest_plugins:
+        - octavia-tempest-plugin
+
+- job:
+    name: octavia-dsvm-base-ipv6-only
+    parent: devstack-tempest-ipv6
+    timeout: 7800
+    required-projects:
+      - openstack/devstack
+      - openstack/octavia
+      - openstack/octavia-lib
+      - openstack/octavia-tempest-plugin
+      - openstack/python-octaviaclient
+    irrelevant-files:
+      - ^.*\.rst$
+      - ^api-ref/.*$
+      - ^doc/.*$
+      - ^etc/.*$
+      - ^releasenotes/.*$
+    vars:
+      devstack_localrc:
+        USE_PYTHON3: true
+        LIBVIRT_TYPE: kvm
+        LIBVIRT_CPU_MODE: host-passthrough
+      devstack_local_conf:
+        post-config:
+          $OCTAVIA_CONF:
+            DEFAULT:
+              debug: True
+      devstack_services:
+        c-bak: false
+        c-sch: false
+        c-api: false
+        c-vol: false
+        cinder: false
+        octavia: true
+        o-api: true
+        o-cw: true
+        o-hm: true
+        o-hk: true
+        swift: false
+        s-account: false
+        s-container: false
+        s-object: false
+        s-proxy: false
+        tempest: true
+      devstack_plugins:
+        octavia: https://opendev.org/openstack/octavia.git
+        octavia-tempest-plugin: https://opendev.org/openstack/octavia-tempest-plugin.git
+        neutron: https://opendev.org/openstack/neutron.git
+      tempest_plugins:
+        - octavia-tempest-plugin
+
+- job:
+    name: octavia-dsvm-live-base
+    parent: octavia-dsvm-base
+    nodeset: octavia-single-node-ubuntu-noble
+    timeout: 9000
+    required-projects:
+      - openstack/diskimage-builder
+    vars:
+      configure_swap_size: 8192
+      devstack_localrc:
+        DIB_LOCAL_ELEMENTS: openstack-ci-mirrors
+        LIBVIRT_TYPE: kvm
+        LIBVIRT_CPU_MODE: host-passthrough
+      devstack_local_conf:
+        post-config:
+          $OCTAVIA_CONF:
+            haproxy_amphora:
+              # Set these higher for non-nested virt nodepool instances
+              connection_max_retries: 1200
+              build_active_retries: 300
+            amphora_agent:
+              forward_all_logs: True
+        test-config:
+          "$TEMPEST_CONFIG":
+            load_balancer:
+              check_interval: 1
+              check_timeout: 180
+            loadbalancer-feature-enabled:
+              not_implemented_is_error: True
+      devstack_services:
+        neutron-qos: true
+      zuul_copy_output:
+        '/var/log/dib-build' : logs
+        '/var/log/octavia-amphora.log': logs
+        '/var/log/octavia-tenant-traffic.log': logs
+
+- job:
+    name: octavia-dsvm-live-base-ipv6-only
+    parent: octavia-dsvm-base-ipv6-only
+    nodeset: octavia-single-node-ubuntu-noble
+    timeout: 9000
+    required-projects:
+      - openstack/diskimage-builder
+    vars:
+      configure_swap_size: 8192
+      devstack_localrc:
+        DIB_LOCAL_ELEMENTS: openstack-ci-mirrors
+      devstack_local_conf:
+        post-config:
+          $OCTAVIA_CONF:
+            haproxy_amphora:
+              # Set these higher for non-nested virt nodepool instances
+              connection_max_retries: 1200
+              build_active_retries: 300
+            amphora_agent:
+              forward_all_logs: True
+        test-config:
+          "$TEMPEST_CONFIG":
+            load_balancer:
+              check_interval: 1
+              check_timeout: 180
+      devstack_services:
+        neutron-qos: true
+      zuul_copy_output:
+        '/var/log/dib-build' : logs
+        '/var/log/octavia-amphora.log': logs
+        '/var/log/octavia-tenant-traffic.log': logs
+
+- job:
+    name: octavia-dsvm-live-two-node-base
+    parent: octavia-dsvm-base
+    nodeset: octavia-two-node
+    timeout: 10800
+    required-projects:
+      - openstack/diskimage-builder
+    roles:
+      - zuul: openstack/neutron-tempest-plugin
+    pre-run: playbooks/prepare-ovn-multinode.yaml
+    vars:
+      zuul_copy_output:
+        '/var/log/dib-build': logs
+        '/var/log/octavia-amphora.log': logs
+        '/var/log/octavia-tenant-traffic.log': logs
+    host-vars:
+      controller:
+        configure_swap_size: 8192
+        devstack_localrc:
+          # From devstack "vars:"
+          DATABASE_USER: octavia
+          DATABASE_PASSWORD: octavia_database_pw
+          RABBIT_PASSWORD: octavia_rabbit_pw
+          ADMIN_PASSWORD: octavia_admin_pw
+          SERVICE_PASSWORD: octavia_service_pw
+          NETWORK_GATEWAY: 10.1.0.1
+          FIXED_RANGE: 10.1.0.0/20
+          IPV4_ADDRS_SAFE_TO_USE: 10.1.0.0/20
+          FLOATING_RANGE: 172.24.5.0/24
+          PUBLIC_NETWORK_GATEWAY: 172.24.5.1
+          LOGFILE: /opt/stack/logs/devstacklog.txt
+          LOG_COLOR: false
+          VERBOSE: true
+          VERBOSE_NO_TIMESTAMP: true
+          NOVNC_FROM_PACKAGE: true
+          ERROR_ON_CLONE: true
+          MULTI_HOST: 1
+          SERVICE_HOST: "{{ hostvars['controller']['nodepool']['private_ipv4'] }}"
+          HOST_IP: "{{ hostvars['controller']['nodepool']['private_ipv4'] }}"
+          USE_PYTHON3: true
+          LIBVIRT_TYPE: kvm
+          LIBVIRT_CPU_MODE: host-passthrough
+          # Octavia specific settings
+          OCTAVIA_CONTROLLER_IP_PORT_LIST: 192.168.0.3:5555,192.168.0.4:5555
+          OCTAVIA_MGMT_PORT_IP: 192.168.0.3
+          OCTAVIA_NODE: main
+          OCTAVIA_NODES: "main:{{ hostvars['controller']['nodepool']['private_ipv4'] }},second:{{ hostvars['controller2']['nodepool']['private_ipv4'] }}"
+          OCTAVIA_USE_PREGENERATED_CERTS: true
+        devstack_plugins:
+          neutron: https://opendev.org/openstack/neutron.git
+          octavia: https://opendev.org/openstack/octavia.git
+          octavia-tempest-plugin: https://opendev.org/openstack/octavia-tempest-plugin.git
+        tempest_plugins:
+          - octavia-tempest-plugin
+      controller2:
+        configure_swap_size: 8192
+        devstack_localrc:
+          # From devstack "vars:"
+          DATABASE_USER: octavia
+          DATABASE_PASSWORD: octavia_database_pw
+          RABBIT_PASSWORD: octavia_rabbit_pw
+          ADMIN_PASSWORD: octavia_admin_pw
+          SERVICE_PASSWORD: octavia_service_pw
+          NETWORK_GATEWAY: 10.1.0.1
+          FIXED_RANGE: 10.1.0.0/20
+          IPV4_ADDRS_SAFE_TO_USE: 10.1.0.0/20
+          FLOATING_RANGE: 172.24.5.0/24
+          PUBLIC_NETWORK_GATEWAY: 172.24.5.1
+          LOGFILE: /opt/stack/logs/devstacklog.txt
+          LOG_COLOR: false
+          VERBOSE: true
+          VERBOSE_NO_TIMESTAMP: true
+          NOVNC_FROM_PACKAGE: true
+          ERROR_ON_CLONE: true
+          MULTI_HOST: 1
+          HOST_IP: "{{ hostvars['controller2']['nodepool']['private_ipv4'] }}"
+          SERVICE_HOST: "{{ hostvars['controller']['nodepool']['private_ipv4'] }}"
+          NEUTRON_SERVICE_HOST: "{{ hostvars['controller']['nodepool']['private_ipv4'] }}"
+          DATABASE_HOST: "{{ hostvars['controller']['nodepool']['private_ipv4'] }}"
+          RABBIT_HOST: "{{ hostvars['controller']['nodepool']['private_ipv4'] }}"
+          GLANCE_HOSTPORT: "{{ hostvars['controller']['nodepool']['private_ipv4'] }}:9292"
+          USE_PYTHON3: true
+          LIBVIRT_TYPE: kvm
+          LIBVIRT_CPU_MODE: host-passthrough
+          # Octavia specific settings
+          OCTAVIA_CONTROLLER_IP_PORT_LIST: 192.168.0.3:5555,192.168.0.4:5555
+          OCTAVIA_NODE: subnode
+          OCTAVIA_USE_PREGENERATED_CERTS: true
+          OCTAVIA_MGMT_PORT_IP: 192.168.0.4
+        devstack_plugins:
+          neutron: https://opendev.org/openstack/neutron.git
+          octavia: https://opendev.org/openstack/octavia.git
+    group-vars:
+      controller:
+        devstack_local_conf:
+          post-config:
+            $OCTAVIA_CONF:
+              DEFAULT:
+                debug: True
+              api_settings:
+                api_v1_enabled: False
+              amphora_agent:
+                forward_all_logs: True
+            "/$NEUTRON_CORE_PLUGIN_CONF":
+              ovn:
+                enable_distributed_floating_ip: True
+        devstack_services:
+          base: false
+          barbican: false
+          dstat: true
+          g-api: true
+          key: true
+          memory_tracker: false
+          mysql: true
+          n-api: true
+          n-api-meta: true
+          n-cond: true
+          n-cpu: true
+          n-sch: true
+          neutron-qos: true
+          octavia: true
+          o-api-ha: true
+          o-api: true
+          o-cw: true
+          o-hm: true
+          o-hk: true
+          ovn-controller: true
+          ovn-northd: true
+          ovn-vswitchd: true
+          ovsdb-server: true
+          placement-api: true
+          q-agt: false
+          q-dhcp: false
+          q-l3: false
+          q-meta: false
+          q-ovn-metadata-agent: true
+          q-svc: true
+          rabbit: true
+          tempest: true
+          tls-proxy: true
+      subnode:
+        devstack_local_conf:
+          post-config:
+            $OCTAVIA_CONF:
+              DEFAULT:
+                debug: True
+              api_settings:
+                api_v1_enabled: False
+              amphora_agent:
+                forward_all_logs: True
+            "/$NEUTRON_CORE_PLUGIN_CONF":
+              ovn:
+                enable_distributed_floating_ip: True
+        devstack_services:
+          c-vol: false
+          c-bak: false
+          octavia: true
+          o-api: true
+          o-cw: true
+          o-hm: true
+          o-hk: true
+          ovn-controller: true
+          ovn-northd: false
+          ovn-vswitchd: true
+          ovsdb-server: true
+          q-fake: true
+          q-agt: false
+          q-dhcp: false
+          q-l3: false
+          q-meta: false
+          q-ovn-metadata-agent: true
+
+- job:
+    name: octavia-dsvm-noop-base
+    parent: octavia-dsvm-base
+    vars:
+      devstack_localrc:
+        DISABLE_AMP_IMAGE_BUILD: True
+      devstack_local_conf:
+        test-config:
+          "$TEMPEST_CONFIG":
+            load_balancer:
+              test_with_noop: True
+              build_interval: 0.5
+              check_interval: 0.5
+              lb_build_interval: 0.5
+              # AZ API tests with no-op need AZs configured but they do not
+              # need to actually exist in Nova due to the no-op driver.
+              availability_zone: bogus-az-1
+              availability_zone2: bogus-az-2
+              availability_zone3: bogus-az-3
+        post-config:
+          $OCTAVIA_CONF:
+            controller_worker:
+              amphora_driver: amphora_noop_driver
+              compute_driver: compute_noop_driver
+              network_driver: network_noop_driver
+              image_driver: image_noop_driver
+            certificates:
+              cert_manager: local_cert_manager
+      devstack_services:
+        barbican: false
+
+- job:
+    name: octavia-v2-dsvm-noop-api
+    parent: octavia-dsvm-noop-base
+    timeout: 10800
+    vars:
+      devstack_local_conf:
+        post-config:
+          $OCTAVIA_CONF:
+            api_settings:
+              api_v1_enabled: False
+            audit:
+              enabled: True
+            audit_middleware_notifications:
+              driver: log
+            certificates:
+              cert_manager: noop_cert_manager
+      tempest_concurrency: 4
+      tempest_test_regex: ^octavia_tempest_plugin.tests.api.v2
+      tox_envlist: all
+    irrelevant-files:
+      - ^.*\.rst$
+      - ^api-ref/.*$
+      - ^doc/.*$
+      - ^etc/.*$
+      - ^releasenotes/.*$
+      - ^octavia_tempest_plugin/tests/act_stdby_scenario/.*
+      - ^octavia_tempest_plugin/tests/barbican_scenario/.*
+      - ^octavia_tempest_plugin/tests/scenario/.*
+      - ^octavia_tempest_plugin/tests/spare_pool_scenario/.*  # TODO: remove
+
+- job:
+    name: octavia-v2-dsvm-noop-api-advanced-rbac
+    parent: octavia-v2-dsvm-noop-api
+    vars:
+      devstack_localrc:
+        OCTAVIA_USE_ADVANCED_RBAC: True
+      devstack_local_conf:
+        test-config:
+          "$TEMPEST_CONFIG":
+            load_balancer:
+              RBAC_test_type: advanced
+
+- job:
+    name: octavia-v2-dsvm-noop-py2-api
+    parent: octavia-v2-dsvm-noop-api
+    vars:
+      devstack_localrc:
+        USE_PYTHON3: False
+
+- job:
+    name: octavia-v2-dsvm-noop-api-stable-2025-1
+    parent: octavia-v2-dsvm-noop-api
+    nodeset: octavia-single-node-ubuntu-noble
+    override-checkout: stable/2025.1
+
+- job:
+    name: octavia-v2-dsvm-noop-api-stable-2024-2
+    parent: octavia-v2-dsvm-noop-api
+    nodeset: octavia-single-node-ubuntu-jammy
+    override-checkout: stable/2024.2
+    vars:
+      devstack_local_conf:
+        test-config:
+          "$TEMPEST_CONFIG":
+            load_balancer:
+              RBAC_test_type: advanced
+
+- job:
+    name: octavia-v2-dsvm-noop-api-stable-2024-1
+    parent: octavia-v2-dsvm-noop-api
+    nodeset: octavia-single-node-ubuntu-jammy
+    override-checkout: stable/2024.1
+    vars:
+      devstack_local_conf:
+        test-config:
+          "$TEMPEST_CONFIG":
+            load_balancer:
+              RBAC_test_type: advanced
+
+- job:
+    name: octavia-v2-dsvm-scenario-base
+    parent: octavia-dsvm-live-base
+    vars:
+      devstack_local_conf:
+        post-config:
+          $OCTAVIA_CONF:
+            api_settings:
+              api_v1_enabled: False
+        test-config:
+          "$TEMPEST_CONFIG":
+            loadbalancer-feature-enabled:
+              log_offload_enabled: True
+      tempest_concurrency: 2
+      tempest_test_regex: ^octavia_tempest_plugin.tests.scenario.v2
+      tox_envlist: all
+    irrelevant-files:
+      - ^.*\.rst$
+      - ^api-ref/.*$
+      - ^doc/.*$
+      - ^etc/.*$
+      - ^releasenotes/.*$
+      - ^octavia_tempest_plugin/tests/act_stdby_scenario/.*
+      - ^octavia_tempest_plugin/tests/api/.*
+      - ^octavia_tempest_plugin/tests/barbican_scenario/.*
+      - ^octavia_tempest_plugin/tests/spare_pool_scenario/.*  # TODO: remove
+
+- job:
+    name: octavia-v2-dsvm-scenario
+    parent: octavia-v2-dsvm-scenario-base
+    branches:
+      regex: ^(unmaintained/|stable/(2024.1|2024.2))
+      negate: true
+    nodeset: octavia-single-node-ubuntu-noble
+
+- job:
+    name: octavia-v2-dsvm-scenario
+    parent: octavia-v2-dsvm-scenario-base
+    branches: ^(stable/(2024.1|2024.2))
+    nodeset: octavia-single-node-ubuntu-jammy
+
+- job:
+    name: octavia-v2-dsvm-scenario-traffic-ops
+    parent: octavia-v2-dsvm-scenario
+    vars:
+      tempest_test_regex: ^octavia_tempest_plugin.tests.scenario.v2.*traffic_ops
+
+- job:
+    name: octavia-v2-dsvm-scenario-non-traffic-ops
+    parent: octavia-v2-dsvm-scenario
+    vars:
+      tempest_test_regex: ^octavia_tempest_plugin.tests.scenario.v2.(?!.*traffic_ops)
+
+- job:
+    name: octavia-v2-dsvm-scenario-ipv6-only
+    parent: octavia-dsvm-live-base-ipv6-only
+    vars:
+      devstack_local_conf:
+        post-config:
+          $OCTAVIA_CONF:
+            api_settings:
+              api_v1_enabled: False
+      tempest_concurrency: 2
+      tempest_test_regex: ^octavia_tempest_plugin.tests.scenario.v2
+      tox_envlist: all
+    irrelevant-files:
+      - ^.*\.rst$
+      - ^api-ref/.*$
+      - ^doc/.*$
+      - ^etc/.*$
+      - ^releasenotes/.*$
+      - ^octavia_tempest_plugin/tests/act_stdby_scenario/.*
+      - ^octavia_tempest_plugin/tests/api/.*
+      - ^octavia_tempest_plugin/tests/barbican_scenario/.*
+      - ^octavia_tempest_plugin/tests/spare_pool_scenario/.*  # TODO: remove
+
+- job:
+    name: octavia-v2-dsvm-py2-scenario
+    parent: octavia-v2-dsvm-scenario
+    vars:
+      devstack_localrc:
+        USE_PYTHON3: False
+    required-projects:
+      - name: openstack/diskimage-builder
+        override-checkout: 2.30.0
+
+- job:
+    name: octavia-v2-dsvm-scenario-stable-2025-1
+    parent: octavia-v2-dsvm-scenario
+    nodeset: octavia-single-node-ubuntu-noble
+    override-checkout: stable/2025.1
+
+- job:
+    name: octavia-v2-dsvm-scenario-traffic-ops-stable-2025-1
+    parent: octavia-v2-dsvm-scenario-stable-2025-1
+    vars:
+      tempest_test_regex: ^octavia_tempest_plugin.tests.scenario.v2.*traffic_ops
+
+- job:
+    name: octavia-v2-dsvm-scenario-non-traffic-ops-stable-2025-1
+    parent: octavia-v2-dsvm-scenario-stable-2025-1
+    vars:
+      tempest_test_regex: ^octavia_tempest_plugin.tests.scenario.v2.(?!.*traffic_ops)
+
+
+- job:
+    name: octavia-v2-dsvm-scenario-stable-2024-2
+    parent: octavia-v2-dsvm-scenario
+    nodeset: octavia-single-node-ubuntu-jammy
+    override-checkout: stable/2024.2
+    vars:
+      devstack_local_conf:
+        test-config:
+          "$TEMPEST_CONFIG":
+            load_balancer:
+              RBAC_test_type: advanced
+
+- job:
+    name: octavia-v2-dsvm-scenario-traffic-ops-stable-2024-2
+    parent: octavia-v2-dsvm-scenario-stable-2024-2
+    vars:
+      tempest_test_regex: ^octavia_tempest_plugin.tests.scenario.v2.*traffic_ops
+
+- job:
+    name: octavia-v2-dsvm-scenario-non-traffic-ops-stable-2024-2
+    parent: octavia-v2-dsvm-scenario-stable-2024-2
+    vars:
+      tempest_test_regex: ^octavia_tempest_plugin.tests.scenario.v2.(?!.*traffic_ops)
+
+- job:
+    name: octavia-v2-dsvm-scenario-stable-2024-1
+    parent: octavia-v2-dsvm-scenario
+    nodeset: octavia-single-node-ubuntu-jammy
+    override-checkout: stable/2024.1
+    vars:
+      devstack_local_conf:
+        test-config:
+          "$TEMPEST_CONFIG":
+            load_balancer:
+              RBAC_test_type: advanced
+
+- job:
+    name: octavia-v2-dsvm-scenario-traffic-ops-stable-2024-1
+    parent: octavia-v2-dsvm-scenario-stable-2024-1
+    vars:
+      tempest_test_regex: ^octavia_tempest_plugin.tests.scenario.v2.*traffic_ops
+
+- job:
+    name: octavia-v2-dsvm-scenario-non-traffic-ops-stable-2024-1
+    parent: octavia-v2-dsvm-scenario-stable-2024-1
+    vars:
+      tempest_test_regex: ^octavia_tempest_plugin.tests.scenario.v2.(?!.*traffic_ops)
+
+# Legacy jobs for the transition to the act-stdby two node jobs
+- job:
+    name: octavia-v2-dsvm-scenario-two-node
+    parent: octavia-dsvm-live-two-node-base
+    vars:
+      tempest_concurrency: 2
+      tempest_test_regex: ^octavia_tempest_plugin.tests.scenario.v2
+      tox_envlist: all
+    irrelevant-files:
+      - ^.*\.rst$
+      - ^api-ref/.*$
+      - ^doc/.*$
+      - ^etc/.*$
+      - ^releasenotes/.*$
+      - ^octavia_tempest_plugin/tests/act_stdby_scenario/.*
+      - ^octavia_tempest_plugin/tests/api/.*
+      - ^octavia_tempest_plugin/tests/barbican_scenario/.*
+      - ^octavia_tempest_plugin/tests/spare_pool_scenario/.*  # TODO: remove
+
+- job:
+    name: octavia-v2-dsvm-py2-scenario-two-node
+    parent: octavia-v2-dsvm-scenario-two-node
+    host-vars:
+      controller:
+        devstack_localrc:
+          USE_PYTHON3: False
+          LIBVIRT_TYPE: kvm
+          LIBVIRT_CPU_MODE: host-passthrough
+      controller2:
+        devstack_localrc:
+          USE_PYTHON3: False
+          LIBVIRT_TYPE: kvm
+          LIBVIRT_CPU_MODE: host-passthrough
+    required-projects:
+      - name: openstack/diskimage-builder
+        override-checkout: 2.30.0
+
+- job:
+    name: octavia-v2-act-stdby-dsvm-scenario-two-node
+    parent: octavia-dsvm-live-two-node-base
+    group-vars:
+      controller:
+        tempest_concurrency: 2
+        tempest_test_regex: ^octavia_tempest_plugin.tests.scenario.v2
+        tox_envlist: all
+        devstack_local_conf:
+          post-config:
+            $OCTAVIA_CONF:
+              nova:
+                enable_anti_affinity: True
+              controller_worker:
+                loadbalancer_topology: ACTIVE_STANDBY
+          test-config:
+            "$TEMPEST_CONFIG":
+              load_balancer:
+                loadbalancer_topology: ACTIVE_STANDBY
+      subnode:
+        devstack_local_conf:
+          post-config:
+            $OCTAVIA_CONF:
+              nova:
+                enable_anti_affinity: True
+              controller_worker:
+                loadbalancer_topology: ACTIVE_STANDBY
+
+- job:
+    name: octavia-v2-dsvm-scenario-centos-9-stream
+    parent: octavia-v2-dsvm-scenario
+    nodeset: octavia-single-node-centos-9-stream
+    vars:
+      devstack_localrc:
+        OCTAVIA_AMP_BASE_OS: centos
+        OCTAVIA_AMP_DISTRIBUTION_RELEASE_ID: 9-stream
+        OCTAVIA_AMP_IMAGE_SIZE: 3
+        OCTAVIA_SSH_KEY_TYPE: ecdsa
+        OCTAVIA_SSH_KEY_BITS: 256
+      devstack_local_conf:
+        test-config:
+          "$TEMPEST_CONFIG":
+            validation:
+              ssh_key_type: ecdsa
+
+- job:
+    name: octavia-v2-dsvm-scenario-centos-9-stream-traffic-ops
+    parent: octavia-v2-dsvm-scenario-centos-9-stream
+    vars:
+      tempest_test_regex: ^octavia_tempest_plugin.tests.scenario.v2.*traffic_ops
+
+- job:
+    name: octavia-v2-dsvm-scenario-centos-9-stream-non-traffic-ops
+    parent: octavia-v2-dsvm-scenario-centos-9-stream
+    vars:
+      tempest_test_regex: ^octavia_tempest_plugin.tests.scenario.v2.(?!.*traffic_ops)
+
+- job:
+    name: octavia-v2-dsvm-scenario-rockylinux-9
+    parent: octavia-v2-dsvm-scenario
+    nodeset: octavia-single-node-rockylinux-9
+    vars:
+      devstack_localrc:
+        OCTAVIA_AMP_BASE_OS: rocky
+        OCTAVIA_AMP_DISTRIBUTION_RELEASE_ID: 9
+        OCTAVIA_AMP_IMAGE_SIZE: 3
+        OCTAVIA_SSH_KEY_TYPE: ecdsa
+        OCTAVIA_SSH_KEY_BITS: 256
+        # Temporary workaround to fix centos 9 stream and rocky, they don't
+        # work with the new default value of GLOBAL_VENV in devstack
+        GLOBAL_VENV: false
+      devstack_local_conf:
+        test-config:
+          "$TEMPEST_CONFIG":
+            validation:
+              ssh_key_type: ecdsa
+
+- job:
+    name: octavia-v2-dsvm-scenario-rockylinux-9-traffic-ops
+    parent: octavia-v2-dsvm-scenario-rockylinux-9
+    vars:
+      tempest_test_regex: ^octavia_tempest_plugin.tests.scenario.v2.*traffic_ops
+
+- job:
+    name: octavia-v2-dsvm-scenario-rockylinux-9-non-traffic-ops
+    parent: octavia-v2-dsvm-scenario-rockylinux-9
+    vars:
+      tempest_test_regex: ^octavia_tempest_plugin.tests.scenario.v2.(?!.*traffic_ops)
+
+- job:
+    name: octavia-v2-dsvm-scenario-ubuntu-jammy
+    parent: octavia-v2-dsvm-scenario
+    nodeset: octavia-single-node-ubuntu-jammy
+    vars:
+      devstack_localrc:
+        OCTAVIA_AMP_BASE_OS: ubuntu
+        OCTAVIA_AMP_DISTRIBUTION_RELEASE_ID: jammy
+
+- job:
+    name: octavia-v2-dsvm-tls-barbican-base
+    parent: octavia-v2-dsvm-scenario
+    required-projects:
+      - openstack/barbican
+      - openstack/diskimage-builder
+      - openstack/python-barbicanclient
+      - openstack/barbican-tempest-plugin
+    vars:
+      tempest_test_regex: ^octavia_tempest_plugin.tests.barbican_scenario.v2
+      devstack_services:
+        barbican: true
+      devstack_plugins:
+        barbican: https://opendev.org/openstack/barbican.git
+      tempest_plugins:
+        - octavia-tempest-plugin
+        - barbican-tempest-plugin
+    irrelevant-files:
+      - ^.*\.rst$
+      - ^api-ref/.*$
+      - ^doc/.*$
+      - ^etc/.*$
+      - ^releasenotes/.*$
+      - ^octavia_tempest_plugin/tests/act_stdby_scenario/.*
+      - ^octavia_tempest_plugin/tests/api/.*
+      - ^octavia_tempest_plugin/tests/scenario/.*
+      - ^octavia_tempest_plugin/tests/spare_pool_scenario/.*  # TODO: remove
+
+- job:
+    name: octavia-v2-dsvm-tls-barbican
+    parent: octavia-v2-dsvm-tls-barbican-base
+    branches:
+      regex: ^(unmaintained/|stable/(2024.1|2024.2))
+      negate: true
+    nodeset: octavia-single-node-ubuntu-noble
+
+- job:
+    name: octavia-v2-dsvm-tls-barbican
+    parent: octavia-v2-dsvm-tls-barbican-base
+    branches: ^(stable/(2024.1|2024.2))
+    nodeset: octavia-single-node-ubuntu-jammy
+
+- job:
+    name: octavia-v2-dsvm-tls-barbican-stable-2025-1
+    parent: octavia-v2-dsvm-tls-barbican
+    nodeset: octavia-single-node-ubuntu-noble
+    override-checkout: stable/2025.1
+
+- job:
+    name: octavia-v2-dsvm-tls-barbican-stable-2024-2
+    parent: octavia-v2-dsvm-tls-barbican
+    nodeset: octavia-single-node-ubuntu-jammy
+    override-checkout: stable/2024.2
+    vars:
+      devstack_local_conf:
+        test-config:
+          "$TEMPEST_CONFIG":
+            load_balancer:
+              RBAC_test_type: advanced
+
+- job:
+    name: octavia-v2-dsvm-tls-barbican-stable-2024-1
+    parent: octavia-v2-dsvm-tls-barbican
+    nodeset: octavia-single-node-ubuntu-jammy
+    override-checkout: stable/2024.1
+    vars:
+      devstack_local_conf:
+        test-config:
+          "$TEMPEST_CONFIG":
+            load_balancer:
+              RBAC_test_type: advanced
+
+- job:
+    name: octavia-v2-dsvm-spare-pool
+    parent: octavia-v2-dsvm-scenario
+    vars:
+      tempest_test_regex: ^octavia_tempest_plugin.tests.spare_pool_scenario.v2
+      devstack_local_conf:
+        post-config:
+          $OCTAVIA_CONF:
+            house_keeping:
+              spare_amphora_pool_size: 1
+        test-config:
+          "$TEMPEST_CONFIG":
+            loadbalancer-feature-enabled:
+              spare_pool_enabled: True
+
+- job:
+    name: octavia-v2-dsvm-py2-spare-pool
+    parent: octavia-v2-dsvm-spare-pool
+    vars:
+      devstack_localrc:
+        USE_PYTHON3: False
+    required-projects:
+      - name: openstack/diskimage-builder
+        override-checkout: 2.30.0
+
+- job:
+    name: octavia-v2-dsvm-cinder-amphora
+    parent: octavia-v2-dsvm-scenario
+    required-projects:
+      - openstack/cinder
+      - openstack/devstack
+      - openstack/diskimage-builder
+      - openstack/octavia
+      - openstack/octavia-lib
+      - openstack/python-cinderclient
+      - openstack/python-octaviaclient
+    vars:
+      devstack_local_conf:
+        post-config:
+          $OCTAVIA_CONF:
+            controller_worker:
+              volume_driver: volume_cinder_driver
+            cinder:
+              volume_size: 2
+      devstack_services:
+        c-bak: true
+        c-sch: true
+        c-api: true
+        c-vol: true
+        cinder: true
+        octavia: true
+        o-api: true
+        o-cw: true
+        o-hm: true
+        o-hk: true
+        swift: false
+        s-account: false
+        s-container: false
+        s-object: false
+        s-proxy: false
+        tempest: true
+
+# Temporary transitional aliases for gates used in other repos
+# Remove once octavia has transitioned job names
+- job:
+    name: octavia-v2-dsvm-noop-py35-api
+    parent: octavia-v2-dsvm-noop-api
+
+- job:
+    name: octavia-v2-dsvm-py35-scenario
+    parent: octavia-v2-dsvm-scenario
+
+- job:
+    name: octavia-v2-act-stdby-iptables-dsvm-scenario
+    parent: octavia-dsvm-live-base
+    pre-run: playbooks/act_stby_iptables/pre.yaml
+    vars:
+      devstack_localrc:
+        OCTAVIA_USE_PREGENERATED_SSH_KEY: True
+        OCTAVIA_PREGENERATED_SSH_KEY_PATH: /tmp/octavia_ssh_key
+      devstack_local_conf:
+        post-config:
+          $OCTAVIA_CONF:
+            api_settings:
+              api_v1_enabled: False
+            controller_worker:
+              loadbalancer_topology: ACTIVE_STANDBY
+            task_flow:
+              engine: parallel
+        test-config:
+          "$TEMPEST_CONFIG":
+            load_balancer:
+              check_timeout: 180
+              loadbalancer_topology: 'ACTIVE_STANDBY'
+              amphora_ssh_key: '/tmp/octavia_ssh_key'
+      tempest_test_regex: ^octavia_tempest_plugin.tests.act_stdby_scenario.v2.test_active_standby_iptables
+      tox_envlist: all
+
+
+- job:
+    name: octavia-v2-act-stdby-iptables-dsvm-py2-scenario
+    parent: octavia-v2-act-stdby-iptables-dsvm-scenario
+    vars:
+      devstack_localrc:
+        USE_PYTHON3: False
+    required-projects:
+      - name: openstack/diskimage-builder
+        override-checkout: 2.30.0
+
+- job:
+    name: octavia-v2-act-stdby-dsvm-scenario-base
+    parent: octavia-dsvm-live-base
+    vars:
+      devstack_local_conf:
+        post-config:
+          $OCTAVIA_CONF:
+            api_settings:
+              api_v1_enabled: False
+            controller_worker:
+              loadbalancer_topology: ACTIVE_STANDBY
+            task_flow:
+              engine: parallel
+      tempest_concurrency: 2
+      tempest_test_regex: ^octavia_tempest_plugin.tests.act_stdby_scenario.v2.test_active_standby\.
+      tox_envlist: all
+
+- job:
+    name: octavia-v2-act-stdby-dsvm-scenario
+    parent: octavia-v2-act-stdby-dsvm-scenario-base
+    branches:
+      regex: ^(unmaintained/|stable/(2024.1|2024.2))
+      negate: true
+    nodeset: octavia-single-node-ubuntu-noble
+
+- job:
+    name: octavia-v2-act-stdby-dsvm-scenario
+    parent: octavia-v2-act-stdby-dsvm-scenario-base
+    branches: ^(stable/(2024.1|2024.2))
+    nodeset: octavia-single-node-ubuntu-jammy
+
+- job:
+    name: octavia-v2-act-stdby-dsvm-scenario-stable-2025-1
+    parent: octavia-v2-act-stdby-dsvm-scenario
+    nodeset: octavia-single-node-ubuntu-noble
+    override-checkout: stable/2025.1
+
+- job:
+    name: octavia-v2-act-stdby-dsvm-scenario-stable-2024-2
+    parent: octavia-v2-act-stdby-dsvm-scenario
+    nodeset: octavia-single-node-ubuntu-jammy
+    override-checkout: stable/2024.2
+    vars:
+      devstack_local_conf:
+        test-config:
+          "$TEMPEST_CONFIG":
+            load_balancer:
+              RBAC_test_type: advanced
+
+- job:
+    name: octavia-v2-act-stdby-dsvm-scenario-stable-2024-1
+    parent: octavia-v2-act-stdby-dsvm-scenario
+    nodeset: octavia-single-node-ubuntu-jammy
+    override-checkout: stable/2024.1
+    vars:
+      devstack_local_conf:
+        test-config:
+          "$TEMPEST_CONFIG":
+            load_balancer:
+              RBAC_test_type: advanced
+
+# Temporary job, remove once it is no longer used in octavia gates
+- job:
+    name: octavia-v2-dsvm-noop-api-keystone-default-roles
+    parent: octavia-v2-dsvm-noop-api
+    vars:
+      devstack_localrc:
+        OCTAVIA_USE_KEYSTONE_DEFAULT_ROLES: True
+      devstack_local_conf:
+        post-config:
+          $OCTAVIA_CONF:
+            oslo_policy:
+              enforce_scope: True
+              enforce_new_defaults: True
+        test-config:
+          "$TEMPEST_CONFIG":
+            enforce_scope:
+              octavia: True
+            load_balancer:
+              RBAC_test_type: keystone_default_roles
+
+######### Third party jobs ##########
+
+- job:
+    name: neutron-ovn-provider-v2-api
+    parent: ovn-octavia-provider-tempest-release
+    description: Runs the neutron OVN provider driver for Octavia api test.
+    voting: false
+    timeout: 7800
+    attempts: 1
+    tags: ovn-octavia-provider
+    irrelevant-files:
+      - ^.*\.rst$
+      - ^api-ref/.*$
+      - ^doc/.*$
+      - ^etc/.*$
+      - ^releasenotes/.*$
+      - ^octavia/amphorae/.*$
+      - ^octavia/api/drivers/amphora_driver/.*$
+      - ^octavia/compute/.*$
+      - ^octavia/controller/.*$
+      - ^octavia/distributor/.*$
+      - ^octavia/volume/.*$
+      - ^octavia/tests/.*$
+    vars:
+      tempest_test_regex: ^octavia_tempest_plugin.tests.api.v2
+      devstack_local_conf:
+        test-config:
+          "$TEMPEST_CONFIG":
+            loadbalancer-feature-enabled:
+              not_implemented_is_error: False
+
+- job:
+    name: neutron-ovn-provider-v2-scenario
+    parent: ovn-octavia-provider-tempest-release
+    description: Runs the neutron OVN provider driver for Octavia scenario test.
+    voting: false
+    timeout: 7800
+    attempts: 1
+    tags: ovn-octavia-provider
+    irrelevant-files:
+      - ^.*\.rst$
+      - ^api-ref/.*$
+      - ^doc/.*$
+      - ^etc/.*$
+      - ^releasenotes/.*$
+      - ^octavia/amphorae/.*$
+      - ^octavia/api/drivers/amphora_driver/.*$
+      - ^octavia/compute/.*$
+      - ^octavia/controller/.*$
+      - ^octavia/distributor/.*$
+      - ^octavia/volume/.*$
+      - ^octavia/tests/.*$
+    vars:
+      tempest_test_regex: ^octavia_tempest_plugin.tests.scenario.v2
+      devstack_local_conf:
+        test-config:
+          "$TEMPEST_CONFIG":
+            loadbalancer-feature-enabled:
+              not_implemented_is_error: False
