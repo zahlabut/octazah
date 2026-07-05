@@ -231,10 +231,18 @@ class _TrafficAdditionalVIPScenarioTest(
             vip_obj = ipaddress.ip_address(vip_addr)
             if (CONF.validation.connect_method == 'floating' and
                     vip_obj.version == 4):
+                # Build kwargs for floating IP creation
+                fip_kwargs = {
+                    'floating_network_id': CONF.network.public_network_id,
+                    'port_id': vip_port_id
+                }
+                # Only add fixed_ip_address if port_id is provided
+                # (required when port has multiple IPv4 addresses)
+                if vip_port_id:
+                    fip_kwargs['fixed_ip_address'] = vip_addr
+
                 result = cls.lb_mem_float_ip_client.create_floatingip(
-                    floating_network_id=CONF.network.public_network_id,
-                    port_id=vip_port_id,
-                    fixed_ip_address=vip_addr)
+                    **fip_kwargs)
 
                 floating_ip = result['floatingip']
                 floating_address = floating_ip['floating_ip_address']
