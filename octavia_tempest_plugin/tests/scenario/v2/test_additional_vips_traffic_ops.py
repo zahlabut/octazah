@@ -235,6 +235,7 @@ class _TrafficAdditionalVIPScenarioTest(
                     floating_network_id=CONF.network.public_network_id,
                     port_id=vip_port_id,
                     fixed_ip_address=vip_addr)
+
                 floating_ip = result['floatingip']
                 floating_address = floating_ip['floating_ip_address']
                 LOG.info('Created Floating IP for VIP: %s->%s',
