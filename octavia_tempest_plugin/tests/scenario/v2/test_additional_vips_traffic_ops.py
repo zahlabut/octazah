@@ -13,7 +13,6 @@
 #    under the License.
 
 import ipaddress
-import sys
 import testtools
 
 from oslo_log import log as logging
@@ -220,9 +219,14 @@ class _TrafficAdditionalVIPScenarioTest(
 
     @classmethod
     def _get_vips(cls, lb):
+        # Get primary VIP port - will be used for all VIPs with amphora/OVN
+        primary_vip_port_id = lb[const.VIP_PORT_ID]
+
         lb_port_vips = [(lb[const.VIP_PORT_ID], lb[const.VIP_ADDRESS])]
         for vip in lb[const.ADDITIONAL_VIPS]:
-            lb_port_vips.append((vip.get(const.PORT_ID),
+            # Additional VIPs don't have port_id in API response,
+            # but they use the same port as primary VIP (via allowed_address_pairs)
+            lb_port_vips.append((vip.get(const.PORT_ID) or primary_vip_port_id,
                                  vip.get(const.IP_ADDRESS)))
         LOG.debug("LB %s has VIPs: %s", lb[const.ID], lb_port_vips)
 
@@ -232,18 +236,12 @@ class _TrafficAdditionalVIPScenarioTest(
             vip_obj = ipaddress.ip_address(vip_addr)
             if (CONF.validation.connect_method == 'floating' and
                     vip_obj.version == 4):
-                # Build kwargs for floating IP creation
-                fip_kwargs = {
-                    'floating_network_id': CONF.network.public_network_id,
-                    'port_id': vip_port_id
-                }
-                # Only add fixed_ip_address if port_id is provided
-                # (required when port has multiple IPv4 addresses)
-                if vip_port_id:
-                    fip_kwargs['fixed_ip_address'] = vip_addr
-
+                # For additional VIPs, we need to specify both port_id AND fixed_ip_address
+                # because the port has multiple IPs (primary + additional VIPs)
                 result = cls.lb_mem_float_ip_client.create_floatingip(
-                    **fip_kwargs)
+                    floating_network_id=CONF.network.public_network_id,
+                    port_id=vip_port_id,
+                    fixed_ip_address=vip_addr)
 
                 floating_ip = result['floatingip']
                 floating_address = floating_ip['floating_ip_address']
@@ -376,19 +374,6 @@ class TrafficIPv4AdditionalIPv6VIPScenarioTest(
     def test_ipv4_additional_vips_least_connections_http_traffic(self):
         self._test_additional_vips(const.HTTP,
                                    const.LB_ALGORITHM_LEAST_CONNECTIONS)
-
-        # Exit to prevent cleanup and allow debugging
-        LOG.warning("=" * 80)
-        LOG.warning("TEST FINISHED - EXITING WITHOUT CLEANUP FOR DEBUGGING")
-        LOG.warning("Load Balancer ID: %s", self.lb_id)
-        LOG.warning("VIPs: %s", self.lb_vips)
-        LOG.warning("To debug:")
-        LOG.warning("  openstack loadbalancer show %s", self.lb_id)
-        LOG.warning("  openstack floating ip list")
-        LOG.warning("  openstack port list | grep %s", self.lb_id)
-        LOG.warning("  ovn-nbctl find NAT")
-        LOG.warning("=" * 80)
-        sys.exit(1)
 
     @decorators.idempotent_id('5207db80-fb9c-4b43-9ac0-add15b48a6e8')
     def test_ipv4_additional_vips_least_connections_tcp_traffic(self):
