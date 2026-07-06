@@ -13,6 +13,7 @@
 #    under the License.
 
 import ipaddress
+import sys
 import testtools
 
 from oslo_log import log as logging
@@ -375,6 +376,19 @@ class TrafficIPv4AdditionalIPv6VIPScenarioTest(
     def test_ipv4_additional_vips_least_connections_http_traffic(self):
         self._test_additional_vips(const.HTTP,
                                    const.LB_ALGORITHM_LEAST_CONNECTIONS)
+
+        # Exit to prevent cleanup and allow debugging
+        LOG.warning("=" * 80)
+        LOG.warning("TEST FINISHED - EXITING WITHOUT CLEANUP FOR DEBUGGING")
+        LOG.warning("Load Balancer ID: %s", self.lb_id)
+        LOG.warning("VIPs: %s", self.lb_vips)
+        LOG.warning("To debug:")
+        LOG.warning("  openstack loadbalancer show %s", self.lb_id)
+        LOG.warning("  openstack floating ip list")
+        LOG.warning("  openstack port list | grep %s", self.lb_id)
+        LOG.warning("  ovn-nbctl find NAT")
+        LOG.warning("=" * 80)
+        sys.exit(1)
 
     @decorators.idempotent_id('5207db80-fb9c-4b43-9ac0-add15b48a6e8')
     def test_ipv4_additional_vips_least_connections_tcp_traffic(self):
