@@ -219,13 +219,12 @@ class _TrafficAdditionalVIPScenarioTest(
 
     @classmethod
     def _get_vips(cls, lb):
-        # Get primary VIP port - will be used for all VIPs with amphora/OVN
+        # Additional VIPs return port_id=None in API response, preventing floating IP association
+        # Use primary VIP port instead (shared via allowed_address_pairs)
         primary_vip_port_id = lb[const.VIP_PORT_ID]
 
         lb_port_vips = [(lb[const.VIP_PORT_ID], lb[const.VIP_ADDRESS])]
         for vip in lb[const.ADDITIONAL_VIPS]:
-            # Additional VIPs don't have port_id in API response,
-            # but they use the same port as primary VIP (via allowed_address_pairs)
             lb_port_vips.append((vip.get(const.PORT_ID) or primary_vip_port_id,
                                  vip.get(const.IP_ADDRESS)))
         LOG.debug("LB %s has VIPs: %s", lb[const.ID], lb_port_vips)
@@ -236,13 +235,10 @@ class _TrafficAdditionalVIPScenarioTest(
             vip_obj = ipaddress.ip_address(vip_addr)
             if (CONF.validation.connect_method == 'floating' and
                     vip_obj.version == 4):
-                # For additional VIPs, we need to specify both port_id AND fixed_ip_address
-                # because the port has multiple IPs (primary + additional VIPs)
                 result = cls.lb_mem_float_ip_client.create_floatingip(
                     floating_network_id=CONF.network.public_network_id,
                     port_id=vip_port_id,
                     fixed_ip_address=vip_addr)
-
                 floating_ip = result['floatingip']
                 floating_address = floating_ip['floating_ip_address']
                 LOG.info('Created Floating IP for VIP: %s->%s',
