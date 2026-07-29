@@ -2,8 +2,8 @@
 Amphorae test server
 ====================
 
-test_server.bin is a static application that simulates HTTP, HTTPS, and UDP
-servers. This server can properly handle concurrent requests.
+test_server.bin is a static application that simulates HTTP, HTTPS, SCTP and
+UDP servers. This server can properly handle concurrent requests.
 
 Building
 --------
@@ -26,6 +26,8 @@ Build the binary:
 
 ::
 
+    export GOPATH=/tmp/gopath
+    go get github.com/ishidawataru/sctp
     CGO_ENABLED=0 GOOS=linux go build -a -ldflags '-s -w -extldflags -static' -o test_server.bin test_server.go
 
 

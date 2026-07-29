@@ -15,6 +15,8 @@ import (
 	"strconv"
 	"sync"
 	"time"
+
+	"github.com/ishidawataru/sctp"
 )
 
 var sessCookie http.Cookie
@@ -234,6 +236,45 @@ func udpServe(port int, id string) {
 	}
 }
 
+func sctpServe(port int, id string) {
+	ipaddrs := []net.IPAddr{}
+	ipaddrs = append(ipaddrs, net.IPAddr{
+		IP: net.IPv4zero,
+	})
+
+	addr := &sctp.SCTPAddr{
+		IPAddrs: ipaddrs,
+		Port: port,
+	}
+
+	ln, err := sctp.ListenSCTP("sctp", addr)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	buffer := make([]byte, 1500)
+
+	for {
+		conn, err := ln.Accept()
+		if err != nil {
+			fmt.Println("failed to accept: %v", err)
+			return
+		}
+		_, err = conn.Read(buffer)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		_, err = conn.Write([]byte(resp))
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		conn.Close()
+	}
+}
+
 func main() {
 	portPtr := flag.Int("port", 8080, "Port to listen on")
 	idPtr := flag.String("id", "1", "Server ID")
@@ -285,5 +326,6 @@ func main() {
 	}
 
 	go httpServe(*portPtr, *idPtr)
+	go sctpServe(*portPtr, *idPtr)
 	udpServe(*portPtr, *idPtr)
 }
